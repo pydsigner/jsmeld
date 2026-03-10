@@ -60,12 +60,6 @@ pub struct BundleOptions {
     #[serde(default)]
     pub source_map: bool,
 
-    /// Entry point file
-    pub entry: String,
-
-    /// Output file path
-    pub output: String,
-
     /// Enable code splitting
     #[serde(default)]
     pub code_split: bool,
@@ -81,8 +75,6 @@ impl Default for BundleOptions {
             target: swc_ecma_ast::EsVersion::default(),
             minify: false,
             source_map: true,
-            entry: "src/index.js".to_string(),
-            output: "dist/bundle.js".to_string(),
             code_split: false,
             externals: vec![],
         }

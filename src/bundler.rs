@@ -2,6 +2,7 @@
 
 use crate::config::BundleOptions;
 use crate::errors::{JsmeldError, JsmeldResult};
+use crate::util::parse_es_version;
 use std::path::Path;
 use std::sync::Arc;
 use swc_bundler::{Bundler as SwcBundler, Config as BundlerConfig, Hook, Load, ModuleData};
@@ -11,20 +12,13 @@ use swc_ecma_loader::resolvers::{lru::CachingResolver, node::NodeModulesResolver
 use swc_ecma_loader::TargetEnv;
 use swc_atoms::Atom;
 use swc_common::errors::{ColorConfig, Handler};
+use pyo3::prelude::*;
 
-/// Module bundler for JavaScript/TypeScript
-pub struct Bundler {
-    // Bundler state
-    options: Option<BundleOptions>,
-    cm: Arc<SourceMap>,
-    globals: Globals,
-}
-
-/// Hook implementation for SWC bundler
 struct BundlerHook {
     //cm: Arc<SourceMap>,
 }
 
+/// Hook implementation for SWC bundler -- currently a no-op, but can be extended for custom behavior
 impl Hook for BundlerHook {
     fn get_import_meta_props(
         &self,
@@ -66,6 +60,28 @@ impl Load for Loader {
             helpers: Default::default(),
         })
     }
+
+}
+
+#[pyfunction]
+pub fn bundle(entry: String, target: String, minify: bool) -> JsmeldResult<String> {
+    let options = BundleOptions {
+        target: parse_es_version(target)?,
+        minify,
+        ..Default::default()
+    };
+    println!("Target: {:?}", options.target);
+
+    let bundler = Bundler::new();
+    bundler.bundle(entry.clone(), options)
+}
+
+/// Module bundler for JavaScript/TypeScript
+pub struct Bundler {
+    // Bundler state
+    options: Option<BundleOptions>,
+    cm: Arc<SourceMap>,
+    globals: Globals,
 }
 
 impl Bundler {
@@ -103,11 +119,9 @@ impl Bundler {
     pub fn bundle<P: AsRef<Path>>(
         &self,
         entry_point: P,
-        output_path: P,
         options: BundleOptions,
     ) -> JsmeldResult<String> {
         let entry = entry_point.as_ref();
-        let _output = output_path.as_ref();
 
         GLOBALS.set(&self.globals, || {
             self.bundle_internal(entry, options)
@@ -246,8 +260,6 @@ mod tests {
             target: swc_ecma_ast::EsVersion::Es2020,
             minify: false,
             source_map: true,
-            entry: "src/index.js".to_string(),
-            output: "dist/bundle.js".to_string(),
             code_split: false,
             externals: vec![],
         };
@@ -262,8 +274,6 @@ mod tests {
             target: swc_ecma_ast::EsVersion::Es2020,
             minify: false,
             source_map: true,
-            entry: "src/index.js".to_string(),
-            output: "dist/bundle.js".to_string(),
             code_split: false,
             externals: vec![],
         });

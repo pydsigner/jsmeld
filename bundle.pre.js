@@ -1,0 +1,1 @@
+const logMessage=text=>{console.log(`Here is a message: ${text}`);};class Greeter{constructor(name){this.name=name;}greet(){return`Hello, ${this.name}!`;}sendMessage(message){logMessage(message);}}export{Greeter as Greeter};

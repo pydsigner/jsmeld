@@ -1,5 +1,7 @@
 //! Error types for jsmeld
 
+use pyo3::PyErr;
+use pyo3::exceptions::PyException;
 use thiserror::Error;
 
 /// Result type for jsmeld operations
@@ -41,5 +43,11 @@ impl From<&[swc_common::errors::Diagnostic]> for JsmeldError {
         // Convert the SWC error to our error type
         // Diagnostics contains error and diagnostics
         JsmeldError::CompilationError(format!("SWC error: {}", diag.iter().map(|d| d.message()).collect::<Vec<_>>().join("; ")))
+    }
+}
+
+impl std::convert::From<JsmeldError> for PyErr {
+    fn from(err: JsmeldError) -> PyErr {
+        PyException::new_err(err.to_string())
     }
 }

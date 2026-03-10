@@ -2,12 +2,26 @@
 
 use crate::config::CompileOptions;
 use crate::errors::{JsmeldError, JsmeldResult};
+use crate::util::parse_es_version;
+use pyo3::prelude::*;
 use std::path::Path;
 use std::sync::Arc;
 use swc::config::SourceMapsConfig;
 use swc::{HandlerOpts, try_with_handler};
 use swc::{Compiler as SwcCompiler, config::{Config, Options}};
 use swc_common::{SourceMap, FilePathMapping, FileName, GLOBALS, Globals};
+
+#[pyfunction]
+pub fn compile(entry: String, target: String, minify: bool) -> JsmeldResult<String> {
+    let options = CompileOptions {
+        target: parse_es_version(target)?,
+        minify,
+        ..Default::default()
+    };
+
+    let compiler = Compiler::new();
+    compiler.compile_file(entry, options)
+}
 
 /// JavaScript/TypeScript compiler
 pub struct Compiler {

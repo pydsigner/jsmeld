@@ -10,15 +10,26 @@
 //! - **Code Generation**: Generate optimized JavaScript/TypeScript code
 //! - **Error Handling**: Comprehensive error reporting
 
+use pyo3::prelude::*;
+
 pub mod compiler;
 pub mod bundler;
 pub mod config;
 pub mod errors;
+mod util;
 
-pub use compiler::Compiler;
-pub use bundler::Bundler;
+pub use compiler::{compile, Compiler};
+pub use bundler::{bundle, Bundler};
 pub use config::{CompileOptions, BundleOptions};
 pub use errors::{JsmeldError, JsmeldResult};
 
-/// Version of jsmeld
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+/// Python bindings for the jsmeld library.
+#[pymodule]
+mod jsmeld {
+    use pyo3::prelude::*;
+
+    #[pymodule_export]
+    use super::bundle;
+    #[pymodule_export]
+    use super::compile;
+}
