@@ -1,7 +1,7 @@
 use swc_ecma_ast::EsVersion;
-use crate::errors::{JsmeldResult, JsmeldError};
+use crate::errors::{JSMeldResult, JSMeldError};
 
-pub fn parse_es_version(s: String) -> JsmeldResult<EsVersion> {
+pub fn parse_es_version(s: String) -> JSMeldResult<EsVersion> {
     match s.to_lowercase().as_str() {
         "es3" => Ok(EsVersion::Es3),
         "es5" => Ok(EsVersion::Es5),
@@ -16,6 +16,6 @@ pub fn parse_es_version(s: String) -> JsmeldResult<EsVersion> {
         "es2023" => Ok(EsVersion::Es2023),
         "es2024" => Ok(EsVersion::Es2024),
         "esnext" => Ok(EsVersion::EsNext),
-        _ => Err(JsmeldError::ConfigError(format!("Unknown ES version: {s}"))),
+        _ => Err(JSMeldError::ConfigError(format!("Unknown ES version: {s}"))),
     }
 }

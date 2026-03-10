@@ -1,7 +1,7 @@
 //! JavaScript/TypeScript compiler using SWC
 
 use crate::config::CompileOptions;
-use crate::errors::{JsmeldError, JsmeldResult};
+use crate::errors::{JSMeldError, JSMeldResult};
 use crate::util::parse_es_version;
 use pyo3::prelude::*;
 use std::path::Path;
@@ -12,7 +12,7 @@ use swc::{Compiler as SwcCompiler, config::{Config, Options}};
 use swc_common::{SourceMap, FilePathMapping, FileName, GLOBALS, Globals};
 
 #[pyfunction]
-pub fn compile(entry: String, target: String, minify: bool) -> JsmeldResult<String> {
+pub fn compile(entry: String, target: String, minify: bool) -> JSMeldResult<String> {
     let options = CompileOptions {
         target: parse_es_version(target)?,
         minify,
@@ -55,7 +55,7 @@ impl Compiler {
         source: &str,
         filename: &str,
         options: CompileOptions,
-    ) -> JsmeldResult<String> {
+    ) -> JSMeldResult<String> {
         GLOBALS.set(&self.globals, || {
             self.compile_internal(source, filename, options)
         })
@@ -66,7 +66,7 @@ impl Compiler {
         source: &str,
         filename: &str,
         _options: CompileOptions,
-    ) -> JsmeldResult<String> {
+    ) -> JSMeldResult<String> {
         let fm = self.swc.cm.new_source_file(
             FileName::Real(filename.into()).into(),
             source.to_string(),
@@ -86,7 +86,7 @@ impl Compiler {
 
         let output = try_with_handler(self.swc.cm.clone(), HandlerOpts::default(), |handler| {
             self.swc.process_js_file(fm, handler, &opts)
-        }).map_err(|err| JsmeldError::from(err.diagnostics()))?;
+        }).map_err(|err| JSMeldError::from(err.diagnostics()))?;
 
         Ok(output.code)
     }
@@ -106,10 +106,10 @@ impl Compiler {
         &self,
         file_path: P,
         options: CompileOptions,
-    ) -> JsmeldResult<String> {
+    ) -> JSMeldResult<String> {
         let path = file_path.as_ref();
         let source = std::fs::read_to_string(path)
-            .map_err(|e| JsmeldError::IoError(e))?;
+            .map_err(|e| JSMeldError::IoError(e))?;
 
         let filename = path
             .to_str()
@@ -134,7 +134,7 @@ impl Compiler {
         source: &str,
         filename: &str,
         _transforms: Vec<String>,
-    ) -> JsmeldResult<String> {
+    ) -> JSMeldResult<String> {
         GLOBALS.set(&self.globals, || {
             // For now, just compile with default options
             // TODO: Apply specific transforms based on the transforms list

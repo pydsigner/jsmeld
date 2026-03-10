@@ -21,7 +21,7 @@ mod util;
 pub use compiler::{compile, Compiler};
 pub use bundler::{bundle, Bundler};
 pub use config::{CompileOptions, BundleOptions};
-pub use errors::{JsmeldError, JsmeldResult};
+pub use errors::{JSMeldError, JSMeldResult};
 
 /// Python bindings for the jsmeld library.
 #[pymodule]

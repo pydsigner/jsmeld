@@ -5,11 +5,11 @@ use pyo3::exceptions::PyException;
 use thiserror::Error;
 
 /// Result type for jsmeld operations
-pub type JsmeldResult<T> = Result<T, JsmeldError>;
+pub type JSMeldResult<T> = Result<T, JSMeldError>;
 
 /// Error type for jsmeld operations
 #[derive(Error, Debug)]
-pub enum JsmeldError {
+pub enum JSMeldError {
     #[error("Parse error: {0}")]
     ParseError(String),
 
@@ -38,16 +38,16 @@ pub enum JsmeldError {
     Internal(String),
 }
 
-impl From<&[swc_common::errors::Diagnostic]> for JsmeldError {
+impl From<&[swc_common::errors::Diagnostic]> for JSMeldError {
     fn from(diag: &[swc_common::errors::Diagnostic]) -> Self {
         // Convert the SWC error to our error type
         // Diagnostics contains error and diagnostics
-        JsmeldError::CompilationError(format!("SWC error: {}", diag.iter().map(|d| d.message()).collect::<Vec<_>>().join("; ")))
+        JSMeldError::CompilationError(format!("SWC error: {}", diag.iter().map(|d| d.message()).collect::<Vec<_>>().join("; ")))
     }
 }
 
-impl std::convert::From<JsmeldError> for PyErr {
-    fn from(err: JsmeldError) -> PyErr {
+impl std::convert::From<JSMeldError> for PyErr {
+    fn from(err: JSMeldError) -> PyErr {
         PyException::new_err(err.to_string())
     }
 }

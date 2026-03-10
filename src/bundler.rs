@@ -1,7 +1,7 @@
 //! Module bundler using SWC
 
 use crate::config::BundleOptions;
-use crate::errors::{JsmeldError, JsmeldResult};
+use crate::errors::{JSMeldError, JSMeldResult};
 use crate::util::parse_es_version;
 use std::path::Path;
 use std::sync::Arc;
@@ -64,7 +64,7 @@ impl Load for Loader {
 }
 
 #[pyfunction]
-pub fn bundle(entry: String, target: String, minify: bool) -> JsmeldResult<String> {
+pub fn bundle(entry: String, target: String, minify: bool) -> JSMeldResult<String> {
     let options = BundleOptions {
         target: parse_es_version(target)?,
         minify,
@@ -120,7 +120,7 @@ impl Bundler {
         &self,
         entry_point: P,
         options: BundleOptions,
-    ) -> JsmeldResult<String> {
+    ) -> JSMeldResult<String> {
         let entry = entry_point.as_ref();
 
         GLOBALS.set(&self.globals, || {
@@ -128,7 +128,7 @@ impl Bundler {
         })
     }
 
-    fn bundle_internal(&self, entry: &Path, options: BundleOptions) -> JsmeldResult<String> {
+    fn bundle_internal(&self, entry: &Path, options: BundleOptions) -> JSMeldResult<String> {
         // Setup resolver with node module resolution
         let resolver = CachingResolver::new(
             40,
@@ -173,7 +173,7 @@ impl Bundler {
 
         // Bundle the entry point
         let entry_path = entry.canonicalize()
-            .map_err(|e| JsmeldError::IoError(e))?;
+            .map_err(|e| JSMeldError::IoError(e))?;
 
         let entries = std::collections::HashMap::from([
             (
@@ -184,7 +184,7 @@ impl Bundler {
 
         let mut modules = bundler
             .bundle(entries)
-            .map_err(|e| JsmeldError::BundlingError(format!("Bundling failed: {}", e)))?;
+            .map_err(|e| JSMeldError::BundlingError(format!("Bundling failed: {}", e)))?;
 
         // Get the bundled module
         let bundled = modules
@@ -209,11 +209,11 @@ impl Bundler {
             };
 
             emitter.emit_module(&module)
-                .map_err(|e| JsmeldError::BundlingError(format!("Code generation failed: {}", e)))?;
+                .map_err(|e| JSMeldError::BundlingError(format!("Code generation failed: {}", e)))?;
         }
 
         String::from_utf8(output_buf)
-            .map_err(|e| JsmeldError::BundlingError(format!("Invalid UTF-8 in output: {}", e)))
+            .map_err(|e| JSMeldError::BundlingError(format!("Invalid UTF-8 in output: {}", e)))
     }
 
     /// Add an external dependency (won't be bundled)
