@@ -7,8 +7,6 @@
 //!
 //! - **Compilation**: Transform JavaScript/TypeScript files with configurable transforms
 //! - **Bundling**: Bundle multiple modules into optimized output files
-//! - **Code Generation**: Generate optimized JavaScript/TypeScript code
-//! - **Error Handling**: Comprehensive error reporting
 
 use pyo3::prelude::*;
 
