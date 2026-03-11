@@ -1,4 +1,5 @@
 import { logMessage } from './other.js';
+import './index.css';
 
 export class Greeter {
     constructor(name) {
