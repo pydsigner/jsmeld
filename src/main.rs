@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use clap::Parser;
 
-use jsmeld::{bundle, compile};
+use jsmeld::{bundle, compile, JSMeldOptions};
 
 /// Simple CLI for jsmeld: bundle and/or compile an input file to an output path
 #[derive(Parser, Debug)]
@@ -38,8 +38,11 @@ fn main() -> anyhow::Result<()> {
         println!("Bundling {} to {}", cli.input.display(), bundle_path.display());
         let bundled = bundle(
             entry.clone(),
-            cli.target.clone(),
-            cli.minify
+            JSMeldOptions {
+                target: cli.target.clone(),
+                minify: cli.minify,
+                ..Default::default()
+            },
         )?;
         // Ensure parent directory exists before writing
         if let Some(parent) = bundle_path.parent() {
@@ -58,8 +61,11 @@ fn main() -> anyhow::Result<()> {
         println!("Compiling {} to {}", entry, compile_path.display());
         let compiled = compile(
             entry.clone(),
-            cli.target.clone(),
-            cli.minify
+            JSMeldOptions {
+                target: cli.target.clone(),
+                minify: cli.minify,
+                ..Default::default()
+            },
         )?;
         // Ensure parent directory exists before writing
         if let Some(parent) = compile_path.parent() {

@@ -14,20 +14,20 @@ pub mod compiler;
 pub mod bundler;
 pub mod config;
 pub mod errors;
-mod util;
+pub mod util;
 
-pub use compiler::{compile, Compiler};
-pub use bundler::{bundle, Bundler};
-pub use config::{CompileOptions, BundleOptions};
+pub use compiler::{compile, Compiler, py_compile};
+pub use bundler::{bundle, Bundler, py_bundle};
+pub use config::JSMeldOptions;
 pub use errors::{JSMeldError, JSMeldResult};
 
 /// Python bindings for the jsmeld library.
 #[pymodule]
 mod jsmeld {
-    use pyo3::prelude::*;
-
-    #[pymodule_export]
-    use super::bundle;
-    #[pymodule_export]
-    use super::compile;
+    #[pymodule_export(name = "bundle")]
+    use super::py_bundle;
+    #[pymodule_export(name = "compile")]
+    use super::py_compile;
+    #[pymodule_export(name = "JSMeldError")]
+    use crate::errors::PyJSMeldError;
 }

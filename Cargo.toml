@@ -37,6 +37,7 @@ dashmap = "6.0"
 once_cell = "1.19"
 clap = { version = "4", features = ["derive"] }
 pyo3 = "0.28.2"
+lightningcss = { version = "1.0.0-alpha.71", default-features = false, features = ["visitor"] }
 
 [features]
 extension-module = ["pyo3/extension-module"]

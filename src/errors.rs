@@ -1,7 +1,7 @@
 //! Error types for jsmeld
 
 use pyo3::PyErr;
-use pyo3::exceptions::PyException;
+use pyo3::exceptions::{PyException, PyValueError};
 use thiserror::Error;
 
 /// Result type for jsmeld operations
@@ -10,9 +10,6 @@ pub type JSMeldResult<T> = Result<T, JSMeldError>;
 /// Error type for jsmeld operations
 #[derive(Error, Debug)]
 pub enum JSMeldError {
-    #[error("Parse error: {0}")]
-    ParseError(String),
-
     #[error("Compilation error: {0}")]
     CompilationError(String),
 
@@ -20,22 +17,10 @@ pub enum JSMeldError {
     BundlingError(String),
 
     #[error("IO error: {0}")]
-    IoError(#[from] std::io::Error),
-
-    #[error("Serialization error: {0}")]
-    SerializationError(#[from] serde_json::Error),
+    IOError(#[from] std::io::Error),
 
     #[error("Invalid configuration: {0}")]
     ConfigError(String),
-
-    #[error("Module not found: {0}")]
-    ModuleNotFound(String),
-
-    #[error("Transform error: {0}")]
-    TransformError(String),
-
-    #[error("Internal error: {0}")]
-    Internal(String),
 }
 
 impl From<&[swc_common::errors::Diagnostic]> for JSMeldError {
@@ -46,8 +31,20 @@ impl From<&[swc_common::errors::Diagnostic]> for JSMeldError {
     }
 }
 
+impl From<swc_ecma_parser::error::Error> for JSMeldError {
+    fn from(err: swc_ecma_parser::error::Error) -> Self {
+        JSMeldError::CompilationError(format!("SWC parsing error: {:#?}", err))
+    }
+}
+
+pyo3::create_exception!(jsmeld, PyJSMeldError, PyException);
+
 impl std::convert::From<JSMeldError> for PyErr {
     fn from(err: JSMeldError) -> PyErr {
-        PyException::new_err(err.to_string())
+        match err {
+            JSMeldError::IOError(e) => PyJSMeldError::new_err(e.to_string()),
+            JSMeldError::ConfigError(e) => PyValueError::new_err(e.to_string()),
+            _ => PyJSMeldError::new_err(err.to_string()),
+        }
     }
 }

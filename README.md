@@ -1,3 +1,152 @@
 # jsmeld
 
-A library-only wrapper around SWC for compiling and bundling Javascript in Rust and Python.
+A library-only wrapper around SWC for compiling and bundling JavaScript in Rust and Python.
+
+## Rust usage
+
+Both `compile` and `bundle` take a file path and a `JSMeldOptions` struct:
+
+```rust
+use jsmeld::{compile, bundle, JSMeldOptions};
+
+// Compile a single file
+let output = compile(
+    "./src/app.ts".to_string(),
+    JSMeldOptions {
+        target: "es2020".to_string(),
+        minify: true,
+        ..Default::default()
+    },
+)?;
+
+// Bundle an entry point
+let output = bundle(
+    "./src/index.js".to_string(),
+    JSMeldOptions {
+        target: "es2020".to_string(),
+        externals: vec!["react".to_string()],
+        ..Default::default()
+    },
+)?;
+```
+
+### `JSMeldOptions`
+
+A single unified options struct used by both compilation and bundling.
+
+| Field | Type | Default | Used by |
+|-------|------|---------|---------|
+| `target` | `String` | `"es6"` | both |
+| `minify` | `bool` | `false` | both |
+| `source_map` | `bool` | `true` | both |
+| `typescript` | `bool` | `true` | compile |
+| `module` | `String` | `"esm"` | compile |
+| `strict` | `bool` | `true` | compile |
+| `code_split` | `bool` | `false` | bundle |
+| `externals` | `Vec<String>` | `[]` | bundle |
+| `preprocess_style_hooks` | `HashMap<String, Vec<StyleTransformHook>>` | `{}` | bundle |
+| `postprocess_style_hooks` | `HashMap<String, Vec<StyleTransformHook>>` | `{}` | bundle |
+
+### Style hooks
+
+`JSMeldOptions` supports style transformation hooks keyed by file extension.
+
+- `preprocess_style_hooks` — run before the style module is emitted
+- `postprocess_style_hooks` — run after the preprocess hooks
+
+Each key is a file extension (e.g. `"css"`, `"less"`) and each value is an ordered list of hook closures.
+
+Hook type:
+
+```rust
+type StyleTransformHook = Arc<dyn Fn(&Path, &str) -> Result<String, String> + Send + Sync>;
+```
+
+#### Registering hooks in `JSMeldOptions`
+
+```rust
+use std::sync::Arc;
+use std::collections::HashMap;
+use jsmeld::{Bundler, JSMeldOptions};
+
+let mut options = JSMeldOptions::default();
+
+options.preprocess_style_hooks.insert(
+    "less".to_string(),
+    vec![Arc::new(|_path, source| {
+        // transform LESS -> CSS here
+        Ok(source.to_string())
+    })],
+);
+
+options.postprocess_style_hooks.insert(
+    "css".to_string(),
+    vec![Arc::new(|_path, source| {
+        // post-process CSS here
+        Ok(source.to_string())
+    })],
+);
+
+let bundler = Bundler::new();
+let output = bundler.bundle("./src/index.js", options)?;
+```
+
+#### Registering hooks via `Bundler`
+
+If you initialize a `Bundler` with options, you can append hooks per extension:
+
+```rust
+use std::sync::Arc;
+use jsmeld::{Bundler, JSMeldOptions};
+
+let mut bundler = Bundler::with_options(JSMeldOptions::default());
+bundler.add_preprocess_style_hook("css", Arc::new(|_path, source| {
+    Ok(source.to_string())
+}));
+```
+
+Notes:
+
+- Extensions are normalized to lowercase.
+- Leading dots are allowed (e.g. `".css"`).
+- Hooks run only for matching style-file extensions.
+
+---
+
+## Python usage
+
+The Python package exposes two top-level functions. Both accept an optional
+`options` dictionary with the same keys as `JSMeldOptions` above.
+
+```python
+import jsmeld
+
+# Compile a single file (all options are optional)
+output: str = jsmeld.compile("src/app.ts", {
+    "target": "es2020",
+    "minify": True,
+})
+
+# Bundle an entry point
+output: str = jsmeld.bundle("src/index.js", {
+    "target": "es2020",
+    "externals": ["react"],
+})
+```
+
+### Style hooks from Python
+
+`preprocess_style_hooks` and `postprocess_style_hooks` can be passed as
+dictionaries mapping file extensions to lists of callables
+`(path: str, source: str) -> str`:
+
+```python
+def add_banner(path: str, source: str) -> str:
+    return f"/* bundled by jsmeld */\n{source}"
+
+output = jsmeld.bundle("src/index.js", {
+    "postprocess_style_hooks": {
+        "css": [add_banner],
+    },
+})
+```
