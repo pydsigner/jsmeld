@@ -53,13 +53,10 @@ pub struct JSMeldOptions {
     #[serde(default)]
     pub externals: Vec<String>,
 
-    /// Style preprocessing hooks executed before style modules are emitted.
+    /// Style transform hooks keyed by file extension, executed in order when a
+    /// style file is loaded during bundling.
     #[serde(skip, default)]
-    pub preprocess_style_hooks: HashMap<String, Vec<StyleTransformHook>>,
-
-    /// Style postprocessing hooks executed after preprocess hooks.
-    #[serde(skip, default)]
-    pub postprocess_style_hooks: HashMap<String, Vec<StyleTransformHook>>,
+    pub style_hooks: HashMap<String, Vec<StyleTransformHook>>,
 }
 
 impl Default for JSMeldOptions {
@@ -73,8 +70,7 @@ impl Default for JSMeldOptions {
             strict: true,
             code_split: false,
             externals: vec![],
-            preprocess_style_hooks: HashMap::new(),
-            postprocess_style_hooks: HashMap::new(),
+            style_hooks: HashMap::new(),
         }
     }
 }
@@ -90,8 +86,7 @@ impl std::fmt::Debug for JSMeldOptions {
             .field("strict", &self.strict)
             .field("code_split", &self.code_split)
             .field("externals", &self.externals)
-            .field("preprocess_style_hooks", &format!("<{} extension(s)>", self.preprocess_style_hooks.len()))
-            .field("postprocess_style_hooks", &format!("<{} extension(s)>", self.postprocess_style_hooks.len()))
+            .field("style_hooks", &format!("<{} extension(s)>", self.style_hooks.len()))
             .finish()
     }
 }
@@ -158,7 +153,7 @@ fn parse_hooks_into(
 /// Parse a Python dict into [`JSMeldOptions`].
 ///
 /// Recognised keys: `target`, `minify`, `source_map`, `typescript`, `module`, `strict`,
-/// `code_split`, `externals`, `preprocess_style_hooks`, `postprocess_style_hooks`.
+/// `code_split`, `externals`, `style_hooks`.
 pub fn parse_options(dict: &Bound<'_, PyDict>) -> JSMeldResult<JSMeldOptions> {
     let mut opts = JSMeldOptions::default();
 
@@ -176,29 +171,17 @@ pub fn parse_options(dict: &Bound<'_, PyDict>) -> JSMeldResult<JSMeldOptions> {
             "strict" => opts.strict = extract_opt(dict, "strict")?.unwrap(),
             "code_split" => opts.code_split = extract_opt(dict, "code_split")?.unwrap(),
             "externals" => opts.externals = extract_opt(dict, "externals")?.unwrap(),
-            "preprocess_style_hooks" => {
+            "style_hooks" => {
                 let hooks_dict = dict
-                    .get_item("preprocess_style_hooks")
+                    .get_item("style_hooks")
                     .ok()
                     .flatten()
                     .unwrap()
                     .cast_into::<PyDict>()
                     .map_err(|_| JSMeldError::ConfigError(
-                        "'preprocess_style_hooks' must be a dict".to_string(),
+                        "'style_hooks' must be a dict".to_string(),
                     ))?;
-                parse_hooks_into(&hooks_dict, &mut opts.preprocess_style_hooks)?;
-            }
-            "postprocess_style_hooks" => {
-                let hooks_dict = dict
-                    .get_item("postprocess_style_hooks")
-                    .ok()
-                    .flatten()
-                    .unwrap()
-                    .cast_into::<PyDict>()
-                    .map_err(|_| JSMeldError::ConfigError(
-                        "'postprocess_style_hooks' must be a dict".to_string(),
-                    ))?;
-                parse_hooks_into(&hooks_dict, &mut opts.postprocess_style_hooks)?;
+                parse_hooks_into(&hooks_dict, &mut opts.style_hooks)?;
             }
             other => {
                 return Err(JSMeldError::ConfigError(format!("Unknown option: '{other}'")));

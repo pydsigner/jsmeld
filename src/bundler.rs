@@ -34,8 +34,7 @@ impl Hook for BundlerHook {
 
 pub struct Loader {
     pub compiler: Compiler,
-    pub preprocess_style_hooks: HashMap<String, Vec<StyleTransformHook>>,
-    pub postprocess_style_hooks: HashMap<String, Vec<StyleTransformHook>>,
+    pub style_hooks: HashMap<String, Vec<StyleTransformHook>>,
 }
 
 impl Loader {
@@ -88,17 +87,12 @@ impl Load for Loader {
             FileName::Real(path) if Self::is_style_file(path.as_path()) => {
                 let style_source = std::fs::read_to_string(path)
                     .with_context(|| format!("Failed to read style file: {}", path.display()))?;
-                let preprocessed = Self::apply_style_hooks_for_extension(
-                    &self.preprocess_style_hooks,
+                let transformed = Self::apply_style_hooks_for_extension(
+                    &self.style_hooks,
                     path.as_path(),
                     &style_source,
                 )?;
-                let postprocessed = Self::apply_style_hooks_for_extension(
-                    &self.postprocess_style_hooks,
-                    path.as_path(),
-                    &preprocessed,
-                )?;
-                let module_source = Self::build_style_module_source(&postprocessed)?;
+                let module_source = Self::build_style_module_source(&transformed)?;
                 self.compiler.cm().new_source_file(f.clone().into(), module_source)
             }
             FileName::Real(path) => {
@@ -151,11 +145,9 @@ pub fn bundle(entry: String, options: JSMeldOptions) -> JSMeldResult<String> {
 ///   - `source_map` (bool): Emit source maps (default: `True`)
 ///   - `code_split` (bool): Enable code splitting (default: `False`)
 ///   - `externals` (list[str]): Modules to exclude from the bundle (default: `[]`)
-///   - `preprocess_style_hooks` (dict[str, list[callable]]): Map of file extension to
-///     a list of callables `(path: str, source: str) -> str` run before the style
-///     module is emitted (default: `{}`)
-///   - `postprocess_style_hooks` (dict[str, list[callable]]): Same shape as above,
-///     run after the preprocess hooks (default: `{}`)
+///   - `style_hooks` (dict[str, list[callable]]): Map of file extension to
+///     a list of callables `(path: str, source: str) -> str` applied to style
+///     files during bundling (default: `{}`)
 #[pyfunction(name = "bundle")]
 #[pyo3(signature = (entry, options=None))]
 pub fn py_bundle(entry: String, options: Option<Bound<'_, PyDict>>) -> JSMeldResult<String> {
@@ -220,8 +212,7 @@ impl Bundler {
 
         let loader = Loader {
             compiler: self.compiler.clone(),
-            preprocess_style_hooks: self.options.preprocess_style_hooks.clone(),
-            postprocess_style_hooks: self.options.postprocess_style_hooks.clone(),
+            style_hooks: self.options.style_hooks.clone(),
         };
 
         // Convert externals from String to Atom
@@ -312,19 +303,10 @@ impl Bundler {
         extension.trim_start_matches('.').to_ascii_lowercase()
     }
 
-    /// Add a style preprocess hook for a file extension.
-    pub fn add_preprocess_style_hook(&mut self, extension: &str, hook: StyleTransformHook) {
+    /// Add a style hook for a file extension.
+    pub fn add_style_hook(&mut self, extension: &str, hook: StyleTransformHook) {
         let key = Self::normalize_extension(extension);
-        self.options.preprocess_style_hooks
-            .entry(key)
-            .or_default()
-            .push(hook);
-    }
-
-    /// Add a style postprocess hook for a file extension.
-    pub fn add_postprocess_style_hook(&mut self, extension: &str, hook: StyleTransformHook) {
-        let key = Self::normalize_extension(extension);
-        self.options.postprocess_style_hooks
+        self.options.style_hooks
             .entry(key)
             .or_default()
             .push(hook);
@@ -364,8 +346,7 @@ mod tests {
             source_map: true,
             code_split: false,
             externals: vec![],
-            preprocess_style_hooks: HashMap::new(),
-            postprocess_style_hooks: HashMap::new(),
+            style_hooks: HashMap::new(),
             ..Default::default()
         };
         let bundler = Bundler::new(options);
@@ -402,34 +383,31 @@ mod tests {
         let path = Path::new("styles/main.css");
         let source = "body { color: red; }";
 
-        let preprocess_hooks: HashMap<String, Vec<StyleTransformHook>> = HashMap::from([(
+        let hooks: HashMap<String, Vec<StyleTransformHook>> = HashMap::from([(
             "css".to_string(),
-            vec![Arc::new(test_pre_hook) as StyleTransformHook],
-        )]);
-        let postprocess_hooks: HashMap<String, Vec<StyleTransformHook>> = HashMap::from([(
-            "css".to_string(),
-            vec![Arc::new(test_post_hook) as StyleTransformHook],
+            vec![
+                Arc::new(test_pre_hook) as StyleTransformHook,
+                Arc::new(test_post_hook) as StyleTransformHook,
+            ],
         )]);
 
-        let preprocessed = Loader::apply_style_hooks_for_extension(&preprocess_hooks, path, source)
-            .expect("preprocess hook should succeed");
-        let postprocessed = Loader::apply_style_hooks_for_extension(&postprocess_hooks, path, &preprocessed)
-            .expect("postprocess hook should succeed");
+        let result = Loader::apply_style_hooks_for_extension(&hooks, path, source)
+            .expect("hooks should succeed");
 
-        assert_eq!(preprocessed, "body { color: blue; }");
-        assert!(postprocessed.ends_with("/* post */"));
+        assert!(result.contains("blue"));
+        assert!(result.ends_with("/* post */"));
     }
 
     #[test]
     fn test_style_hook_pipeline_skips_other_extensions() {
-        let preprocess_hooks: HashMap<String, Vec<StyleTransformHook>> = HashMap::from([(
+        let hooks: HashMap<String, Vec<StyleTransformHook>> = HashMap::from([(
             "css".to_string(),
             vec![Arc::new(test_pre_hook) as StyleTransformHook],
         )]);
         let source = "body { color: red; }";
         let less_path = Path::new("styles/theme.less");
 
-        let out = Loader::apply_style_hooks_for_extension(&preprocess_hooks, less_path, source)
+        let out = Loader::apply_style_hooks_for_extension(&hooks, less_path, source)
             .expect("hook application should succeed");
 
         assert_eq!(out, source);

@@ -44,15 +44,12 @@ A single unified options struct used by both compilation and bundling.
 | `strict` | `bool` | `true` | compile |
 | `code_split` | `bool` | `false` | bundle |
 | `externals` | `Vec<String>` | `[]` | bundle |
-| `preprocess_style_hooks` | `HashMap<String, Vec<StyleTransformHook>>` | `{}` | bundle |
-| `postprocess_style_hooks` | `HashMap<String, Vec<StyleTransformHook>>` | `{}` | bundle |
+| `style_hooks` | `HashMap<String, Vec<StyleTransformHook>>` | `{}` | bundle |
 
 ### Style hooks
 
 `JSMeldOptions` supports style transformation hooks keyed by file extension.
-
-- `preprocess_style_hooks` — run before the style module is emitted
-- `postprocess_style_hooks` — run after the preprocess hooks
+Hooks are executed in order when a matching style file is loaded during bundling.
 
 Each key is a file extension (e.g. `"css"`, `"less"`) and each value is an ordered list of hook closures.
 
@@ -71,7 +68,7 @@ use jsmeld::{Bundler, JSMeldOptions};
 
 let mut options = JSMeldOptions::default();
 
-options.preprocess_style_hooks.insert(
+options.style_hooks.insert(
     "less".to_string(),
     vec![Arc::new(|_path, source| {
         // transform LESS -> CSS here
@@ -79,16 +76,15 @@ options.preprocess_style_hooks.insert(
     })],
 );
 
-options.postprocess_style_hooks.insert(
-    "css".to_string(),
-    vec![Arc::new(|_path, source| {
+options.style_hooks.entry("css".to_string()).or_default().push(
+    Arc::new(|_path, source| {
         // post-process CSS here
         Ok(source.to_string())
-    })],
+    }),
 );
 
-let bundler = Bundler::new();
-let output = bundler.bundle("./src/index.js", options)?;
+let bundler = Bundler::new(options);
+let output = bundler.bundle("./src/index.js")?;
 ```
 
 #### Registering hooks via `Bundler`
@@ -99,8 +95,8 @@ If you initialize a `Bundler` with options, you can append hooks per extension:
 use std::sync::Arc;
 use jsmeld::{Bundler, JSMeldOptions};
 
-let mut bundler = Bundler::with_options(JSMeldOptions::default());
-bundler.add_preprocess_style_hook("css", Arc::new(|_path, source| {
+let mut bundler = Bundler::new(JSMeldOptions::default());
+bundler.add_style_hook("css", Arc::new(|_path, source| {
     Ok(source.to_string())
 }));
 ```
@@ -136,16 +132,15 @@ output: str = jsmeld.bundle("src/index.js", {
 
 ### Style hooks from Python
 
-`preprocess_style_hooks` and `postprocess_style_hooks` can be passed as
-dictionaries mapping file extensions to lists of callables
-`(path: str, source: str) -> str`:
+`style_hooks` can be passed as a dictionary mapping file extensions to lists
+of callables `(path: str, source: str) -> str`:
 
 ```python
 def add_banner(path: str, source: str) -> str:
     return f"/* bundled by jsmeld */\n{source}"
 
 output = jsmeld.bundle("src/index.js", {
-    "postprocess_style_hooks": {
+    "style_hooks": {
         "css": [add_banner],
     },
 })
