@@ -32,14 +32,13 @@ impl Hook for BundlerHook {
     }
 }
 
-pub struct Loader<'a> {
-    pub cm: Arc<SourceMap>,
-    pub compiler: &'a Compiler,
+pub struct Loader {
+    pub compiler: Compiler,
     pub preprocess_style_hooks: HashMap<String, Vec<StyleTransformHook>>,
     pub postprocess_style_hooks: HashMap<String, Vec<StyleTransformHook>>,
 }
 
-impl Loader<'_> {
+impl Loader {
     fn is_style_file(path: &Path) -> bool {
         path.extension()
             .and_then(|ext| ext.to_str())
@@ -83,7 +82,7 @@ impl Loader<'_> {
     }
 }
 
-impl Load for Loader<'_> {
+impl Load for Loader {
     fn load(&self, f: &FileName) -> Result<ModuleData, anyhow::Error> {
         let fm = match f {
             FileName::Real(path) if Self::is_style_file(path.as_path()) => {
@@ -100,7 +99,7 @@ impl Load for Loader<'_> {
                     &preprocessed,
                 )?;
                 let module_source = Self::build_style_module_source(&postprocessed)?;
-                self.cm.new_source_file(f.clone().into(), module_source)
+                self.compiler.cm().new_source_file(f.clone().into(), module_source)
             }
             FileName::Real(path) => {
                 let source = std::fs::read_to_string(path)
@@ -108,7 +107,7 @@ impl Load for Loader<'_> {
                 let filename = path.to_str().unwrap_or("unknown.js");
                 let compiled = self.compiler.compile(&source, filename)
                     .map_err(|e| anyhow::anyhow!("{e}"))?;
-                self.cm.new_source_file(f.clone().into(), compiled)
+                self.compiler.cm().new_source_file(f.clone().into(), compiled)
             }
             _ => unreachable!(),
         };
@@ -171,20 +170,19 @@ pub fn py_bundle(entry: String, options: Option<Bound<'_, PyDict>>) -> JSMeldRes
 pub struct Bundler {
     options: JSMeldOptions,
     compiler: Compiler,
-    cm: Arc<SourceMap>,
-    globals: Globals,
+    globals: Arc<Globals>,
 }
 
 impl Bundler {
     /// Create a new bundler instance with the given options.
     pub fn new(options: JSMeldOptions) -> Self {
-        let compiler = Compiler::new(options.clone());
         let cm = Arc::new(SourceMap::new(FilePathMapping::empty()));
+        let globals = Arc::new(Globals::new());
+        let compiler = Compiler::with_source_map(options.clone(), cm, globals.clone());
         Bundler {
             options,
             compiler,
-            cm,
-            globals: Globals::new(),
+            globals,
         }
     }
 
@@ -221,8 +219,7 @@ impl Bundler {
         );
 
         let loader = Loader {
-            cm: self.cm.clone(),
-            compiler: &self.compiler,
+            compiler: self.compiler.clone(),
             preprocess_style_hooks: self.options.preprocess_style_hooks.clone(),
             postprocess_style_hooks: self.options.postprocess_style_hooks.clone(),
         };
@@ -251,9 +248,10 @@ impl Bundler {
         };
 
         // Create the SWC bundler
+        let cm = self.compiler.cm();
         let mut bundler = SwcBundler::new(
             &self.globals,
-            self.cm.clone(),
+            cm.clone(),
             &loader,
             &resolver,
             config,
@@ -292,9 +290,9 @@ impl Bundler {
                 cfg: swc_ecma_codegen::Config::default()
                     .with_minify(self.options.minify)
                     .with_target(parse_es_version(self.options.target.clone())?),
-                cm: <Arc<swc_common::SourceMap> as Into<Arc<swc_common::SourceMap>>>::into(self.cm.clone()),
+                cm: <Arc<SourceMap> as Into<Arc<SourceMap>>>::into(cm.clone()),
                 comments: None,
-                wr: JsWriter::new(self.cm.clone().into(), "\n", &mut output_buf, None),
+                wr: JsWriter::new(cm.clone().into(), "\n", &mut output_buf, None),
             };
 
             emitter.emit_module(&module)

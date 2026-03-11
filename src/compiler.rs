@@ -40,21 +40,42 @@ pub fn py_compile(entry: String, options: Option<Bound<'_, PyDict>>) -> JSMeldRe
 }
 
 /// JavaScript/TypeScript compiler
+#[derive(Clone)]
 pub struct Compiler {
     options: JSMeldOptions,
     swc: Arc<SwcCompiler>,
-    globals: Globals,
+    globals: Arc<Globals>,
 }
 
 impl Compiler {
     /// Create a new compiler instance with the given options.
     pub fn new(options: JSMeldOptions) -> Self {
         let cm = Arc::new(SourceMap::new(FilePathMapping::empty()));
+        let globals = Arc::new(Globals::new());
         Compiler {
             options,
             swc: Arc::new(SwcCompiler::new(cm)),
-            globals: Globals::new(),
+            globals,
         }
+    }
+
+    /// Create a compiler that shares a source map and globals with another
+    /// component (e.g. a bundler).
+    pub fn with_source_map(
+        options: JSMeldOptions,
+        cm: Arc<SourceMap>,
+        globals: Arc<Globals>,
+    ) -> Self {
+        Compiler {
+            options,
+            swc: Arc::new(SwcCompiler::new(cm)),
+            globals,
+        }
+    }
+
+    /// Return the source map used by this compiler.
+    pub fn cm(&self) -> Arc<SourceMap> {
+        self.swc.cm.clone()
     }
 
     /// Compile JavaScript/TypeScript code from a string
