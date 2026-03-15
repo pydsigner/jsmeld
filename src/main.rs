@@ -3,27 +3,28 @@ use clap::Parser;
 
 use jsmeld::{bundle, compile, JSMeldOptions};
 
-/// Simple CLI for jsmeld: bundle and/or compile an input file to an output path
+/// Simple CLI for jsmeld: bundle or compile an input file to an output path
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
     /// Input file (entry point)
-    #[arg(short, long)]
     input: PathBuf,
+    /// Output path
+    output: PathBuf,
 
-    /// Bundle output path
-    #[arg(short, long, default_value = None)]
-    bundle: Option<PathBuf>,
+    /// Bundle and compile the input file
+    #[arg(group = "action", short, long)]
+    bundle: bool,
 
-    /// Compile output path
-    #[arg(short, long, default_value = None)]
-    compile: Option<PathBuf>,
+    /// Only compile the input file
+    #[arg(group = "action", short, long)]
+    compile: bool,
 
     // Target JavaScript version (e.g., "es5", "es6", "es2020")
     #[arg(long, default_value = "es6")]
     target: String,
 
-    /// Enable minification for bundling/compilation
+    /// Enable minification of output
     #[arg(short, long)]
     minify: bool,
 }
@@ -32,10 +33,9 @@ fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
     let cli = Cli::parse();
-    let mut entry = cli.input.to_string_lossy().into_owned();
-
-    if let Some(bundle_path) = &cli.bundle {
-        println!("Bundling {} to {}", cli.input.display(), bundle_path.display());
+    let entry = cli.input.to_string_lossy().into_owned();
+    if cli.bundle || !cli.compile {
+        println!("Bundling {} to {}", entry, cli.output.display());
         let bundled = bundle(
             entry.clone(),
             JSMeldOptions {
@@ -45,20 +45,17 @@ fn main() -> anyhow::Result<()> {
             },
         )?;
         // Ensure parent directory exists before writing
-        if let Some(parent) = bundle_path.parent() {
+        if let Some(parent) = cli.output.parent() {
             if !parent.as_os_str().is_empty() {
                 std::fs::create_dir_all(parent)?;
             }
         }
 
-        std::fs::write(bundle_path, bundled)?;
-        println!("Wrote bundle to {}", bundle_path.display());
-        // Use bundled output as entry for compilation
-        entry = bundle_path.to_string_lossy().into_owned();
+        std::fs::write(&cli.output, bundled)?;
+        println!("Wrote bundle to {}", cli.output.display());
     }
-
-    if let Some(compile_path) = &cli.compile {
-        println!("Compiling {} to {}", entry, compile_path.display());
+    else {
+        println!("Compiling {} to {}", entry, cli.output.display());
         let compiled = compile(
             entry.clone(),
             JSMeldOptions {
@@ -68,15 +65,14 @@ fn main() -> anyhow::Result<()> {
             },
         )?;
         // Ensure parent directory exists before writing
-        if let Some(parent) = compile_path.parent() {
+        if let Some(parent) = cli.output.parent() {
             if !parent.as_os_str().is_empty() {
                 std::fs::create_dir_all(parent)?;
             }
         }
 
-        std::fs::write(compile_path, compiled)?;
-        println!("Wrote compiled output to {}", compile_path.display());
+        std::fs::write(&cli.output, compiled)?;
+        println!("Wrote compiled output to {}", cli.output.display());
     }
-
     Ok(())
 }
