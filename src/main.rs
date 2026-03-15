@@ -35,7 +35,7 @@ fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let entry = cli.input.to_string_lossy().into_owned();
     if cli.bundle || !cli.compile {
-        println!("Bundling {} to {}", entry, cli.output.display());
+        tracing::info!("Bundling {} to {}", entry, cli.output.display());
         let bundled = bundle(
             entry.clone(),
             JSMeldOptions {
@@ -52,10 +52,10 @@ fn main() -> anyhow::Result<()> {
         }
 
         std::fs::write(&cli.output, bundled)?;
-        println!("Wrote bundle to {}", cli.output.display());
+        tracing::info!("Wrote bundle to {}", cli.output.display());
     }
     else {
-        println!("Compiling {} to {}", entry, cli.output.display());
+        tracing::info!("Compiling {} to {}", entry, cli.output.display());
         let compiled = compile(
             entry.clone(),
             JSMeldOptions {
@@ -72,7 +72,7 @@ fn main() -> anyhow::Result<()> {
         }
 
         std::fs::write(&cli.output, compiled)?;
-        println!("Wrote compiled output to {}", cli.output.display());
+        tracing::info!("Wrote compiled output to {}", cli.output.display());
     }
     Ok(())
 }
