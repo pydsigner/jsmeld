@@ -5,9 +5,9 @@ use crate::config::{JSMeldOptions, StyleTransformHook, parse_options};
 use crate::errors::{JSMeldError, JSMeldResult};
 use crate::util::parse_es_version;
 use anyhow::Context;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use swc_bundler::{Bundler as SwcBundler, Config as BundlerConfig, Hook, Load, ModuleData};
 use swc_common::{FileName, FilePathMapping, Globals, SourceMap, GLOBALS};
 use swc_ecma_codegen::{text_writer::JsWriter, Emitter};
@@ -39,10 +39,16 @@ pub struct Loader {
 
 impl Loader {
     fn is_style_file(path: &Path) -> bool {
-        path.extension()
-            .and_then(|ext| ext.to_str())
-            .map(|ext| ext.eq_ignore_ascii_case("css") || ext.eq_ignore_ascii_case("less"))
-            .unwrap_or(false)
+        static STYLE_EXTS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
+            HashSet::from(["css", "less", "sass", "scss", "styl"])
+        });
+        match path.extension().and_then(|ext| ext.to_str()) {
+            Some(ext) => {
+                let ext_lc = ext.to_ascii_lowercase();
+                STYLE_EXTS.contains(ext_lc.as_str())
+            }
+            None => false,
+        }
     }
 
     fn build_style_module_source(style_source: &str) -> Result<String, anyhow::Error> {
