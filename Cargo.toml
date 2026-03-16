@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2021"
 description = "A Rust wrapper around SWC for JavaScript/TypeScript compilation and bundling"
 license = "Apache-2.0"
+repository = "https://github.com/pydsigner/jsmeld"
+categories = ["compilers", "web-programming"]
+include = ["src/", "README.md", "LICENSE"]
 
 [lib]
 name = "jsmeld"
