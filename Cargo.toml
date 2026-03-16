@@ -6,7 +6,7 @@ description = "A Rust wrapper around SWC for JavaScript/TypeScript compilation a
 license = "Apache-2.0"
 repository = "https://github.com/pydsigner/jsmeld"
 categories = ["compilers", "web-programming"]
-include = ["src/", "README.md", "LICENSE"]
+include = ["/src", "/README.md", "/LICENSE"]
 
 [lib]
 name = "jsmeld"
