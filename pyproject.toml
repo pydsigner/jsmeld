@@ -4,6 +4,8 @@ build-backend = "maturin"
 
 [project]
 name = "jsmeld"
+description = "Python bindings for jsmeld, a Rust wrapper around SWC for JavaScript/TypeScript compilation and bundling."
+readme = "README.md"
 requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Rust",

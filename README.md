@@ -1,6 +1,6 @@
 # jsmeld
 
-A library-only wrapper around SWC for compiling and bundling JavaScript in Rust and Python.
+A wrapper around SWC for compiling and bundling JavaScript in Rust and Python.
 
 ## Rust usage
 
