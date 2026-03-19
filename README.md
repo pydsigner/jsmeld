@@ -2,6 +2,9 @@
 
 A wrapper around SWC for compiling and bundling JavaScript in Rust and Python.
 
+- [Rust usage](#rust-usage)
+- [Python usage](#python-usage)
+
 ## Rust usage
 
 Both `compile` and `bundle` take a file path and a `JSMeldOptions` struct:
@@ -34,17 +37,17 @@ let output = bundle(
 
 A single unified options struct used by both compilation and bundling.
 
-| Field | Type | Default | Used by |
-|-------|------|---------|---------|
-| `target` | `String` | `"es6"` | both |
-| `minify` | `bool` | `false` | both |
-| `source_map` | `bool` | `true` | both |
-| `typescript` | `bool` | `true` | compile |
-| `module` | `String` | `"esm"` | compile |
-| `strict` | `bool` | `true` | compile |
-| `code_split` | `bool` | `false` | bundle |
-| `externals` | `Vec<String>` | `[]` | bundle |
-| `style_hooks` | `HashMap<String, Vec<StyleTransformHook>>` | `{}` | bundle |
+| Field | Type | Default |
+|-------|------|---------|
+| `target` | `String` | `"es6"` |
+| `minify` | `bool` | `false` |
+| `source_map` | `bool` | `true` |
+| `typescript` | `bool` | `true` |
+| `module` | `String` | `"esm"` |
+| `strict` | `bool` | `true` |
+| `code_split` | `bool` | `false` |
+| `externals` | `Vec<String>` | `[]` |
+| `style_hooks` | `HashMap<String, Vec<StyleTransformHook>>` | `{}` |
 
 ### Style hooks
 
@@ -112,7 +115,7 @@ Notes:
 ## Python usage
 
 The Python package exposes two top-level functions. Both accept an optional
-`options` dictionary with the same keys as `JSMeldOptions` above.
+`options` dictionary with the same keys as [`JSMeldOptions` above](#jsmeldoptions).
 
 ```python
 import jsmeld
