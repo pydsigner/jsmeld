@@ -27,6 +27,14 @@ struct Cli {
     /// Enable minification of output
     #[arg(short, long)]
     minify: bool,
+
+    /// Extract bundled styles into a separate CSS file, defaulting to <output>.css.
+    #[arg(long)]
+    extract_styles: bool,
+
+    /// Path to write extracted bundled styles. Implies --extract-styles.
+    #[arg(long)]
+    style_output: Option<PathBuf>,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -36,11 +44,23 @@ fn main() -> anyhow::Result<()> {
     let entry = cli.input.to_string_lossy().into_owned();
     if cli.bundle || !cli.compile {
         tracing::info!("Bundling {} to {}", entry, cli.output.display());
+
+        let style_output = if cli.extract_styles || cli.style_output.is_some() {
+            let css_path = cli
+                .style_output
+                .clone()
+                .unwrap_or_else(|| cli.output.with_extension("css"));
+            Some(css_path.to_string_lossy().into_owned())
+        } else {
+            None
+        };
+
         let bundled = bundle(
             entry.clone(),
             JSMeldOptions {
                 target: cli.target.clone(),
                 minify: cli.minify,
+                style_output,
                 ..Default::default()
             },
         )?;

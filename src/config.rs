@@ -57,6 +57,12 @@ pub struct JSMeldOptions {
     /// style file is loaded during bundling.
     #[serde(skip, default)]
     pub style_hooks: HashMap<String, Vec<StyleTransformHook>>,
+
+    /// Optional output path for extracted bundled styles. When set during
+    /// bundling, style imports are emitted into this CSS file instead of being
+    /// injected into the JavaScript bundle at runtime.
+    #[serde(default)]
+    pub style_output: Option<String>,
 }
 
 impl Default for JSMeldOptions {
@@ -71,6 +77,7 @@ impl Default for JSMeldOptions {
             code_split: false,
             externals: vec![],
             style_hooks: HashMap::new(),
+            style_output: None,
         }
     }
 }
@@ -87,6 +94,7 @@ impl std::fmt::Debug for JSMeldOptions {
             .field("code_split", &self.code_split)
             .field("externals", &self.externals)
             .field("style_hooks", &format!("<{} extension(s)>", self.style_hooks.len()))
+            .field("style_output", &self.style_output)
             .finish()
     }
 }
@@ -153,7 +161,7 @@ fn parse_hooks_into(
 /// Parse a Python dict into [`JSMeldOptions`].
 ///
 /// Recognised keys: `target`, `minify`, `source_map`, `typescript`, `module`, `strict`,
-/// `code_split`, `externals`, `style_hooks`.
+/// `code_split`, `externals`, `style_hooks`, `style_output`.
 pub fn parse_options(dict: &Bound<'_, PyDict>) -> JSMeldResult<JSMeldOptions> {
     let mut opts = JSMeldOptions::default();
 
@@ -183,6 +191,7 @@ pub fn parse_options(dict: &Bound<'_, PyDict>) -> JSMeldResult<JSMeldOptions> {
                     ))?;
                 parse_hooks_into(&hooks_dict, &mut opts.style_hooks)?;
             }
+            "style_output" => opts.style_output = extract_opt(dict, "style_output")?,
             other => {
                 return Err(JSMeldError::ConfigError(format!("Unknown option: '{other}'")));
             }

@@ -19,6 +19,8 @@ class JSMeldOptions(TypedDict, total=False):
     strict: bool
     code_split: bool
     externals: List[str]
+    # Optional CSS output path used by bundling to extract styles from JS output
+    style_output: str
     # Map extension (e.g. "css") -> list of callables (path, source) -> transformed source
     style_hooks: Dict[str, List[StyleHook]]
 

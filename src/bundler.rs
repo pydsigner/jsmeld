@@ -7,7 +7,7 @@ use crate::util::parse_es_version;
 use anyhow::Context;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
-use std::sync::{Arc, LazyLock};
+use std::sync::{Arc, LazyLock, Mutex};
 use swc_bundler::{Bundler as SwcBundler, Config as BundlerConfig, Hook, Load, ModuleData};
 use swc_common::{FileName, FilePathMapping, Globals, SourceMap, GLOBALS};
 use swc_ecma_codegen::{text_writer::JsWriter, Emitter};
@@ -35,6 +35,7 @@ impl Hook for BundlerHook {
 pub struct Loader {
     pub compiler: Compiler,
     pub style_hooks: HashMap<String, Vec<StyleTransformHook>>,
+    pub extracted_styles: Option<Arc<Mutex<Vec<String>>>>,
 }
 
 impl Loader {
@@ -51,13 +52,17 @@ impl Loader {
         }
     }
 
-    fn build_style_module_source(style_source: &str) -> Result<String, anyhow::Error> {
+    fn build_style_module_source(style_source: &str, inject_runtime_style: bool) -> Result<String, anyhow::Error> {
         let style_literal = serde_json::to_string(style_source)
             .context("Failed to serialize CSS/LESS content")?;
 
-        Ok(format!(
-            "const __jsmeldStyle = {style_literal};\nif (typeof document !== \"undefined\") {{\n  const __jsmeldStyleTag = document.createElement(\"style\");\n  __jsmeldStyleTag.textContent = __jsmeldStyle;\n  document.head.appendChild(__jsmeldStyleTag);\n}}\nexport default __jsmeldStyle;\n"
-        ))
+        if inject_runtime_style {
+            Ok(format!(
+                "const __jsmeldStyle = {style_literal};\nif (typeof document !== \"undefined\") {{\n  const __jsmeldStyleTag = document.createElement(\"style\");\n  __jsmeldStyleTag.textContent = __jsmeldStyle;\n  document.head.appendChild(__jsmeldStyleTag);\n}}\nexport default __jsmeldStyle;\n"
+            ))
+        } else {
+            Ok(format!("const __jsmeldStyle = {style_literal};\n"))
+        }
     }
 
     fn extension_from_path(path: &Path) -> Option<String> {
@@ -98,7 +103,19 @@ impl Load for Loader {
                     path.as_path(),
                     &style_source,
                 )?;
-                let module_source = Self::build_style_module_source(&transformed)?;
+
+                let should_extract_styles = self.extracted_styles.is_some();
+                if let Some(extracted_styles) = &self.extracted_styles {
+                    extracted_styles
+                        .lock()
+                        .map_err(|_| anyhow::anyhow!("Failed to lock style output buffer"))?
+                        .push(transformed.clone());
+                }
+
+                let module_source = Self::build_style_module_source(
+                    &transformed,
+                    !should_extract_styles,
+                )?;
                 self.compiler.cm().new_source_file(f.clone().into(), module_source)
             }
             FileName::Real(path) => {
@@ -151,6 +168,7 @@ pub fn bundle(entry: String, options: JSMeldOptions) -> JSMeldResult<String> {
 ///   - `source_map` (bool): Emit source maps (default: `True`)
 ///   - `code_split` (bool): Enable code splitting (default: `False`)
 ///   - `externals` (list[str]): Modules to exclude from the bundle (default: `[]`)
+///   - `style_output` (str): Optional path for extracted CSS output
 ///   - `style_hooks` (dict[str, list[callable]]): Map of file extension to
 ///     a list of callables `(path: str, source: str) -> str` applied to style
 ///     files during bundling (default: `{}`)
@@ -216,9 +234,15 @@ impl Bundler {
             NodeModulesResolver::new(TargetEnv::Browser, Default::default(), true),
         );
 
+        let extracted_styles = match &self.options.style_output {
+            Some(_) => Some(Arc::new(Mutex::new(Vec::<String>::new()))),
+            None => None,
+        };
+
         let loader = Loader {
             compiler: self.compiler.clone(),
             style_hooks: self.options.style_hooks.clone(),
+            extracted_styles: extracted_styles.clone(),
         };
 
         // Convert externals from String to Atom
@@ -276,12 +300,7 @@ impl Bundler {
 
         // Generate code from the bundle
         let mut output_buf = vec![];
-        let module = bundled.module; /* match bundled.kind {
-            BundleKind::Named { name: _ } => bundled.module,
-            BundleKind::Dynamic {} => bundled.module,
-            BundleKind::Lib { name: _ } => bundled.module,
-        }; */
-
+        let module = bundled.module;
         {
             let mut emitter = Emitter {
                 cfg: swc_ecma_codegen::Config::default()
@@ -294,6 +313,24 @@ impl Bundler {
 
             emitter.emit_module(&module)
                 .map_err(|e| JSMeldError::BundlingError(format!("Code generation failed: {:#?}", e)))?;
+        }
+
+        if let Some(style_output) = &self.options.style_output {
+            let css = extracted_styles
+                .expect("Style output is enabled but no extracted styles found")
+                .lock()
+                .ok()
+                .map(|guard| guard.join("\n"))
+                .unwrap_or_default();
+
+            let css_path = Path::new(style_output);
+            if let Some(parent) = css_path.parent() {
+                if !parent.as_os_str().is_empty() {
+                    std::fs::create_dir_all(parent).map_err(JSMeldError::IOError)?;
+                }
+            }
+
+            std::fs::write(css_path, css).map_err(JSMeldError::IOError)?;
         }
 
         String::from_utf8(output_buf)
@@ -353,6 +390,7 @@ mod tests {
             code_split: false,
             externals: vec![],
             style_hooks: HashMap::new(),
+            style_output: None,
             ..Default::default()
         };
         let bundler = Bundler::new(options);
@@ -369,11 +407,21 @@ mod tests {
     #[test]
     fn test_style_module_generation() {
         let source = "body { color: red; }\n@var: 12px;";
-        let module = Loader::build_style_module_source(source).expect("module generation should work");
+        let module = Loader::build_style_module_source(source, true).expect("module generation should work");
 
         assert!(module.contains("document.createElement(\"style\")"));
         assert!(module.contains("export default __jsmeldStyle;"));
         assert!(module.contains("body { color: red; }\\n@var: 12px;"));
+    }
+
+    #[test]
+    fn test_style_module_generation_without_runtime_injection() {
+        let source = "body { color: red; }";
+        let module = Loader::build_style_module_source(source, false)
+            .expect("module generation should work");
+
+        assert!(!module.contains("document.createElement(\"style\")"));
+        assert!(module.contains("export default __jsmeldStyle;"));
     }
 
     fn test_pre_hook(_path: &Path, source: &str) -> Result<String, String> {
