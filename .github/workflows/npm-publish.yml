@@ -326,7 +326,7 @@ jobs:
           set -euo pipefail
           shopt -s nullglob
           for file in npm-binary-*/*.tgz; do
-            npm publish "$file" --provenance --access public
+            npm publish "./$file" --provenance --access public
           done
 
       - name: Publish top-level package
@@ -340,4 +340,4 @@ jobs:
             echo "Expected exactly one wrapper package tarball, found ${#wrapper_files[@]}"
             exit 1
           fi
-          npm publish "${wrapper_files[0]}" --provenance --access public
+          npm publish "./${wrapper_files[0]}" --provenance --access public
