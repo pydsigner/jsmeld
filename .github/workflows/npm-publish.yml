@@ -93,13 +93,18 @@ jobs:
         id: version
         shell: bash
         run: |
+          set -euo pipefail
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             version="${{ github.event.inputs.version }}"
             if [[ -z "$version" ]]; then
-              version="$(grep -m1 '^version\s*=\s*"' Cargo.toml | sed -E 's/^version\s*=\s*"([^"]+)"/\1/')"
+              version="$(awk -F '=' '/^[[:space:]]*version[[:space:]]*=/{v=$2; gsub(/[[:space:]\"]/, "", v); print v; exit}' Cargo.toml)"
             fi
           else
             version="${GITHUB_REF_NAME#v}"
+          fi
+          if [[ -z "$version" ]]; then
+            echo "Failed to resolve package version"
+            exit 1
           fi
           echo "value=$version" >> "$GITHUB_OUTPUT"
 
@@ -167,13 +172,18 @@ jobs:
         id: version
         shell: bash
         run: |
+          set -euo pipefail
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             version="${{ github.event.inputs.version }}"
             if [[ -z "$version" ]]; then
-              version="$(grep -m1 '^version\s*=\s*"' Cargo.toml | sed -E 's/^version\s*=\s*"([^"]+)"/\1/')"
+              version="$(awk -F '=' '/^[[:space:]]*version[[:space:]]*=/{v=$2; gsub(/[[:space:]\"]/, "", v); print v; exit}' Cargo.toml)"
             fi
           else
             version="${GITHUB_REF_NAME#v}"
+          fi
+          if [[ -z "$version" ]]; then
+            echo "Failed to resolve package version"
+            exit 1
           fi
           echo "value=$version" >> "$GITHUB_OUTPUT"
 
