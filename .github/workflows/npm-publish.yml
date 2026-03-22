@@ -149,7 +149,7 @@ jobs:
           }
           EOF
 
-          npm pack "$package_dir" --pack-destination dist
+          cd "$package_dir" && npm pack --pack-destination ../../dist
 
       - name: Upload binary package artifact
         uses: actions/upload-artifact@v6
@@ -284,7 +284,7 @@ jobs:
 
           cp node/README.md "$package_dir/README.md"
 
-          npm pack "$package_dir" --pack-destination dist
+          cd "$package_dir" && npm pack --pack-destination ../../dist
 
       - name: Upload wrapper package artifact
         uses: actions/upload-artifact@v6
