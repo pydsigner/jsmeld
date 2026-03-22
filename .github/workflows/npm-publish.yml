@@ -1,0 +1,333 @@
+name: Publish npm packages
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 0.1.2). If empty, uses Cargo.toml version.'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-binary-packages:
+    name: Build ${{ matrix.platform.package_name }}
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            package_name: jsmeld-linux-x64-gnu
+            os: linux
+            cpu: x64
+            libc: gnu
+            bin_name: jsmeld
+            bin_ext: ''
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            package_name: jsmeld-linux-arm64-gnu
+            os: linux
+            cpu: arm64
+            libc: gnu
+            bin_name: jsmeld
+            bin_ext: ''
+          - runner: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+            package_name: jsmeld-linux-x64-musl
+            os: linux
+            cpu: x64
+            libc: musl
+            bin_name: jsmeld
+            bin_ext: ''
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            package_name: jsmeld-linux-arm64-musl
+            os: linux
+            cpu: arm64
+            libc: musl
+            bin_name: jsmeld
+            bin_ext: ''
+          - runner: macos-13
+            target: x86_64-apple-darwin
+            package_name: jsmeld-darwin-x64
+            os: darwin
+            cpu: x64
+            bin_name: jsmeld
+            bin_ext: ''
+          - runner: macos-14
+            target: aarch64-apple-darwin
+            package_name: jsmeld-darwin-arm64
+            os: darwin
+            cpu: arm64
+            bin_name: jsmeld
+            bin_ext: ''
+          - runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            package_name: jsmeld-win32-x64-msvc
+            os: win32
+            cpu: x64
+            bin_name: jsmeld
+            bin_ext: .exe
+          - runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            package_name: jsmeld-win32-arm64-msvc
+            os: win32
+            cpu: arm64
+            bin_name: jsmeld
+            bin_ext: .exe
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Resolve package version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            version="${{ github.event.inputs.version }}"
+            if [[ -z "$version" ]]; then
+              version="$(grep -m1 '^version\s*=\s*"' Cargo.toml | sed -E 's/^version\s*=\s*"([^"]+)"/\1/')"
+            fi
+          else
+            version="${GITHUB_REF_NAME#v}"
+          fi
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform.target }}
+
+      - name: Install musl tools
+        if: ${{ matrix.platform.os == 'linux' && matrix.platform.libc == 'musl' }}
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - name: Build binary
+        shell: bash
+        run: cargo build --release --locked --target ${{ matrix.platform.target }} --bin jsmeld
+
+      - name: Build npm package
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.value }}"
+          package_dir="npm-build/${{ matrix.platform.package_name }}"
+          binary_path="target/${{ matrix.platform.target }}/release/${{ matrix.platform.bin_name }}${{ matrix.platform.bin_ext }}"
+
+          mkdir -p "$package_dir/bin" dist
+          cp "$binary_path" "$package_dir/bin/jsmeld${{ matrix.platform.bin_ext }}"
+          chmod +x "$package_dir/bin/jsmeld${{ matrix.platform.bin_ext }}" || true
+
+          cat > "$package_dir/package.json" <<EOF
+          {
+            "name": "${{ matrix.platform.package_name }}",
+            "version": "$version",
+            "description": "Prebuilt jsmeld binary for ${{ matrix.platform.os }}-${{ matrix.platform.cpu }}",
+            "license": "Apache-2.0",
+            "repository": {
+              "type": "git",
+              "url": "git+https://github.com/pydsigner/jsmeld.git"
+            },
+            "os": ["${{ matrix.platform.os }}"],
+            "cpu": ["${{ matrix.platform.cpu }}"],
+            "files": ["bin"],
+            "bin": {
+              "jsmeld": "bin/jsmeld${{ matrix.platform.bin_ext }}"
+            }
+          }
+          EOF
+
+          npm pack "$package_dir" --pack-destination dist
+
+      - name: Upload binary package artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: npm-binary-${{ matrix.platform.package_name }}
+          path: dist/*.tgz
+
+  build-wrapper-package:
+    name: Build jsmeld wrapper package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Resolve package version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            version="${{ github.event.inputs.version }}"
+            if [[ -z "$version" ]]; then
+              version="$(grep -m1 '^version\s*=\s*"' Cargo.toml | sed -E 's/^version\s*=\s*"([^"]+)"/\1/')"
+            fi
+          else
+            version="${GITHUB_REF_NAME#v}"
+          fi
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build wrapper package
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.value }}"
+          package_dir="npm-build/jsmeld"
+
+          mkdir -p "$package_dir/bin" dist
+
+          cat > "$package_dir/package.json" <<EOF
+          {
+            "name": "jsmeld",
+            "version": "$version",
+            "description": "Cross-platform CLI wrapper for jsmeld prebuilt binaries",
+            "license": "Apache-2.0",
+            "repository": {
+              "type": "git",
+              "url": "git+https://github.com/pydsigner/jsmeld.git"
+            },
+            "bin": {
+              "jsmeld": "bin/jsmeld.js"
+            },
+            "main": "index.js",
+            "files": ["bin", "index.js", "README.md"],
+            "optionalDependencies": {
+              "jsmeld-linux-x64-gnu": "$version",
+              "jsmeld-linux-arm64-gnu": "$version",
+              "jsmeld-linux-x64-musl": "$version",
+              "jsmeld-linux-arm64-musl": "$version",
+              "jsmeld-darwin-x64": "$version",
+              "jsmeld-darwin-arm64": "$version",
+              "jsmeld-win32-x64-msvc": "$version",
+              "jsmeld-win32-arm64-msvc": "$version"
+            }
+          }
+          EOF
+
+          cat > "$package_dir/index.js" <<'EOF'
+          const path = require('node:path');
+
+          function detectLibc() {
+            if (process.platform !== 'linux') {
+              return null;
+            }
+            const report = process.report && typeof process.report.getReport === 'function'
+              ? process.report.getReport()
+              : null;
+            if (report && report.header && report.header.glibcVersionRuntime) {
+              return 'gnu';
+            }
+            return 'musl';
+          }
+
+          function packageNameForCurrentPlatform() {
+            const { platform, arch } = process;
+            if (platform === 'darwin' && arch === 'x64') return 'jsmeld-darwin-x64';
+            if (platform === 'darwin' && arch === 'arm64') return 'jsmeld-darwin-arm64';
+            if (platform === 'win32' && arch === 'x64') return 'jsmeld-win32-x64-msvc';
+            if (platform === 'win32' && arch === 'arm64') return 'jsmeld-win32-arm64-msvc';
+            if (platform === 'linux' && arch === 'x64' && detectLibc() === 'gnu') return 'jsmeld-linux-x64-gnu';
+            if (platform === 'linux' && arch === 'arm64' && detectLibc() === 'gnu') return 'jsmeld-linux-arm64-gnu';
+            if (platform === 'linux' && arch === 'x64' && detectLibc() === 'musl') return 'jsmeld-linux-x64-musl';
+            if (platform === 'linux' && arch === 'arm64' && detectLibc() === 'musl') return 'jsmeld-linux-arm64-musl';
+            return null;
+          }
+
+          function resolveBinary() {
+            const packageName = packageNameForCurrentPlatform();
+            if (!packageName) {
+              throw new Error(`Unsupported platform: ${process.platform} ${process.arch}`);
+            }
+            const ext = process.platform === 'win32' ? '.exe' : '';
+            return require.resolve(path.join(packageName, `bin/jsmeld${ext}`));
+          }
+
+          module.exports = {
+            resolveBinary,
+            packageNameForCurrentPlatform,
+          };
+          EOF
+
+          cat > "$package_dir/bin/jsmeld.js" <<'EOF'
+          #!/usr/bin/env node
+          const { spawn } = require('node:child_process');
+          const { resolveBinary } = require('../index.js');
+
+          const binaryPath = resolveBinary();
+          const child = spawn(binaryPath, process.argv.slice(2), { stdio: 'inherit' });
+
+          child.on('error', (err) => {
+            console.error(err.message);
+            process.exit(1);
+          });
+
+          child.on('exit', (code, signal) => {
+            if (signal) {
+              process.kill(process.pid, signal);
+              return;
+            }
+            process.exit(code ?? 0);
+          });
+          EOF
+
+          chmod +x "$package_dir/bin/jsmeld.js"
+
+          cp node/README.md "$package_dir/README.md"
+
+          npm pack "$package_dir" --pack-destination dist
+
+      - name: Upload wrapper package artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: npm-wrapper-jsmeld
+          path: dist/*.tgz
+
+  publish-to-npm:
+    name: Publish npm packages
+    runs-on: ubuntu-latest
+    needs: [build-binary-packages, build-wrapper-package]
+    if: ${{ startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' }}
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - uses: actions/download-artifact@v7
+
+      - name: Publish binary packages
+        shell: bash
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for file in npm-binary-*/*.tgz; do
+            npm publish "$file" --provenance --access public
+          done
+
+      - name: Publish top-level package
+        shell: bash
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          wrapper_files=(npm-wrapper-jsmeld/*.tgz)
+          if [[ ${#wrapper_files[@]} -ne 1 ]]; then
+            echo "Expected exactly one wrapper package tarball, found ${#wrapper_files[@]}"
+            exit 1
+          fi
+          npm publish "${wrapper_files[0]}" --provenance --access public
