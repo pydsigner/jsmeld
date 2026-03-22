@@ -57,14 +57,14 @@ jobs:
             libc: musl
             bin_name: jsmeld
             bin_ext: ''
-          - runner: macos-13
+          - runner: macos-15-intel
             target: x86_64-apple-darwin
             package_name: jsmeld-darwin-x64
             os: darwin
             cpu: x64
             bin_name: jsmeld
             bin_ext: ''
-          - runner: macos-14
+          - runner: macos-latest
             target: aarch64-apple-darwin
             package_name: jsmeld-darwin-arm64
             os: darwin
