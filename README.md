@@ -4,6 +4,7 @@ A wrapper around SWC for compiling and bundling JavaScript in Rust and Python.
 
 - [Rust usage](#rust-usage)
 - [CLI usage](#cli-usage)
+- [NPM usage](#npm-usage)
 - [Python usage](#python-usage)
 
 ## Rust usage
@@ -184,6 +185,46 @@ Options:
     -h, --help                         Print help
     -V, --version                      Print version
 ```
+
+---
+
+## NPM usage
+
+Install the cross-platform CLI package:
+
+```bash
+npm install --save-dev jsmeld
+```
+
+Run it via `npx`:
+
+```bash
+npx jsmeld src/index.js dist/bundle.js --bundle --minify
+```
+
+Or use it from npm scripts:
+
+```json
+{
+    "scripts": {
+        "build:js": "jsmeld src/index.js dist/bundle.js --bundle"
+    }
+}
+```
+
+The top-level `jsmeld` package uses `optionalDependencies` to install the
+matching prebuilt binary package for your platform.
+
+Published binary package names:
+
+- `jsmeld-linux-x64-gnu`
+- `jsmeld-linux-arm64-gnu`
+- `jsmeld-linux-x64-musl`
+- `jsmeld-linux-arm64-musl`
+- `jsmeld-darwin-x64`
+- `jsmeld-darwin-arm64`
+- `jsmeld-win32-x64-msvc`
+- `jsmeld-win32-arm64-msvc`
 
 ---
 
