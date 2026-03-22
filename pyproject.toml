@@ -29,3 +29,7 @@ authors = [
     {"name" = "Daniel Foerster", "email" = "pydsigner@gmail.com"},
 ]
 keywords = ["js", "javascript", "minify", "bundle"]
+
+[tool.maturin]
+bindings = "pyo3"
+features = ["extension-module"]

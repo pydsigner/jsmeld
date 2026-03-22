@@ -1,7 +1,5 @@
 //! Error types for jsmeld
 
-use pyo3::PyErr;
-use pyo3::exceptions::{PyException, PyValueError};
 use thiserror::Error;
 
 /// Result type for jsmeld operations
@@ -34,17 +32,5 @@ impl From<&[swc_common::errors::Diagnostic]> for JSMeldError {
 impl From<swc_ecma_parser::error::Error> for JSMeldError {
     fn from(err: swc_ecma_parser::error::Error) -> Self {
         JSMeldError::CompilationError(format!("SWC parsing error: {:#?}", err))
-    }
-}
-
-pyo3::create_exception!(jsmeld, PyJSMeldError, PyException);
-
-impl std::convert::From<JSMeldError> for PyErr {
-    fn from(err: JSMeldError) -> PyErr {
-        match err {
-            JSMeldError::IOError(e) => PyJSMeldError::new_err(e.to_string()),
-            JSMeldError::ConfigError(e) => PyValueError::new_err(e.to_string()),
-            _ => PyJSMeldError::new_err(err.to_string()),
-        }
     }
 }

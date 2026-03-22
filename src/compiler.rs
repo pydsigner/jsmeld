@@ -1,10 +1,8 @@
 //! JavaScript/TypeScript compiler using SWC
 
-use crate::config::{JSMeldOptions, parse_options};
+use crate::config::JSMeldOptions;
 use crate::errors::{JSMeldError, JSMeldResult};
 use crate::util::parse_es_version;
-use pyo3::prelude::*;
-use pyo3::types::PyDict;
 use std::path::Path;
 use std::sync::Arc;
 use swc::config::SourceMapsConfig;
@@ -21,22 +19,6 @@ use swc_common::{SourceMap, FilePathMapping, FileName, GLOBALS, Globals};
 pub fn compile(entry: String, options: JSMeldOptions) -> JSMeldResult<String> {
     let compiler = Compiler::new(options);
     compiler.compile_file(entry)
-}
-
-/// Python binding for [`compile`].
-///
-/// # Arguments
-///
-/// * `entry` – Path to the source file.
-/// * `options` – Optional dict of options. See [`crate::bundler::parse_options`] for keys.
-#[pyfunction(name = "compile")]
-#[pyo3(signature = (entry, options=None))]
-pub fn py_compile(entry: String, options: Option<Bound<'_, PyDict>>) -> JSMeldResult<String> {
-    let opts = match options {
-        Some(ref dict) => parse_options(dict)?,
-        None => JSMeldOptions::default(),
-    };
-    compile(entry, opts)
 }
 
 /// JavaScript/TypeScript compiler

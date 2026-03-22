@@ -1,7 +1,7 @@
 //! Module bundler using SWC
 
 use crate::compiler::Compiler;
-use crate::config::{JSMeldOptions, StyleTransformHook, parse_options};
+use crate::config::{JSMeldOptions, StyleTransformHook};
 use crate::errors::{JSMeldError, JSMeldResult};
 use crate::util::parse_es_version;
 use anyhow::Context;
@@ -14,8 +14,6 @@ use swc_ecma_codegen::{text_writer::JsWriter, Emitter};
 use swc_ecma_loader::resolvers::{lru::CachingResolver, node::NodeModulesResolver};
 use swc_ecma_loader::TargetEnv;
 use swc_atoms::Atom;
-use pyo3::prelude::*;
-use pyo3::types::PyDict;
 
 struct BundlerHook {
     //cm: Arc<SourceMap>,
@@ -155,31 +153,6 @@ impl Load for Loader {
 pub fn bundle(entry: String, options: JSMeldOptions) -> JSMeldResult<String> {
     let bundler = Bundler::new(options);
     bundler.bundle(entry)
-}
-
-/// Python binding for [`bundle`].
-///
-/// # Arguments
-///
-/// * `entry` – Path to the entry file.
-/// * `options` – Optional dict of bundle options. Supported keys:
-///   - `target` (str): ES version, e.g. `"es2020"` (default: `"es5"`)
-///   - `minify` (bool): Enable minification (default: `False`)
-///   - `source_map` (bool): Emit source maps (default: `True`)
-///   - `code_split` (bool): Enable code splitting (default: `False`)
-///   - `externals` (list[str]): Modules to exclude from the bundle (default: `[]`)
-///   - `style_output` (str): Optional path for extracted CSS output
-///   - `style_hooks` (dict[str, list[callable]]): Map of file extension to
-///     a list of callables `(path: str, source: str) -> str` applied to style
-///     files during bundling (default: `{}`)
-#[pyfunction(name = "bundle")]
-#[pyo3(signature = (entry, options=None))]
-pub fn py_bundle(entry: String, options: Option<Bound<'_, PyDict>>) -> JSMeldResult<String> {
-    let bundle_options = match options {
-        Some(ref dict) => parse_options(dict)?,
-        None => JSMeldOptions::default(),
-    };
-    bundle(entry, bundle_options)
 }
 
 /// Module bundler for JavaScript/TypeScript
