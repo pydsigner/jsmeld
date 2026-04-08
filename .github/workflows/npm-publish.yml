@@ -198,7 +198,7 @@ jobs:
 
           cat > "$package_dir/package.json" <<EOF
           {
-            "name": "jsmeld",
+            "name": "jsmeld-cli",
             "version": "$version",
             "description": "Cross-platform CLI wrapper for jsmeld prebuilt binaries",
             "license": "Apache-2.0",
